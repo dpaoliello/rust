@@ -473,8 +473,8 @@ fn trait_pointer_metadata(
 
     let (containing_scope, trait_type_name) = match trait_object_type {
         Some(trait_object_type) => match trait_object_type.kind() {
-            ty::Adt(def, _) => (
-                Some(get_namespace_for_item(cx, def.did)),
+            ty::Adt(def, substs) => (
+                Some(get_namespace_for_item(cx, def.did, substs)),
                 compute_debuginfo_type_name(cx.tcx, trait_object_type, false),
             ),
             ty::RawPtr(_) | ty::Ref(..) => {
@@ -669,7 +669,7 @@ pub fn type_metadata(cx: &CodegenCx<'ll, 'tcx>, t: Ty<'tcx>, usage_site_span: Sp
         }
         ty::Closure(def_id, substs) => {
             let upvar_tys: Vec<_> = substs.as_closure().upvar_tys().collect();
-            let containing_scope = get_namespace_for_item(cx, def_id);
+            let containing_scope = get_namespace_for_item(cx, def_id, substs);
             prepare_tuple_metadata(
                 cx,
                 t,
@@ -1251,12 +1251,12 @@ fn prepare_struct_metadata(
 ) -> RecursiveTypeDescription<'ll, 'tcx> {
     let struct_name = compute_debuginfo_type_name(cx.tcx, struct_type, false);
 
-    let (struct_def_id, variant) = match struct_type.kind() {
-        ty::Adt(def, _) => (def.did, def.non_enum_variant()),
+    let (struct_def_id, variant, substs) = match struct_type.kind() {
+        ty::Adt(def, substs) => (def.did, def.non_enum_variant(), substs),
         _ => bug!("prepare_struct_metadata on a non-ADT"),
     };
 
-    let containing_scope = get_namespace_for_item(cx, struct_def_id);
+    let containing_scope = get_namespace_for_item(cx, struct_def_id, substs);
 
     let struct_metadata_stub = create_struct_stub(
         cx,
@@ -1385,12 +1385,12 @@ fn prepare_union_metadata(
 ) -> RecursiveTypeDescription<'ll, 'tcx> {
     let union_name = compute_debuginfo_type_name(cx.tcx, union_type, false);
 
-    let (union_def_id, variant) = match union_type.kind() {
-        ty::Adt(def, _) => (def.did, def.non_enum_variant()),
+    let (union_def_id, variant, substs) = match union_type.kind() {
+        ty::Adt(def, substs) => (def.did, def.non_enum_variant(), substs),
         _ => bug!("prepare_union_metadata on a non-ADT"),
     };
 
-    let containing_scope = get_namespace_for_item(cx, union_def_id);
+    let containing_scope = get_namespace_for_item(cx, union_def_id, substs);
 
     let union_metadata_stub =
         create_union_stub(cx, union_type, &union_name, unique_type_id, containing_scope);
@@ -1994,7 +1994,12 @@ fn prepare_enum_metadata(
     let tcx = cx.tcx;
     let enum_name = compute_debuginfo_type_name(tcx, enum_type, false);
 
-    let containing_scope = get_namespace_for_item(cx, enum_def_id);
+    let substs = match enum_type.kind() {
+        ty::Adt(_, substs) => substs,
+        _ => bug!("prepare_enum_metadata on a non-ADT"),
+    };
+
+    let containing_scope = get_namespace_for_item(cx, enum_def_id, substs);
     // FIXME: This should emit actual file metadata for the enum, but we
     // currently can't get the necessary information when it comes to types
     // imported from other crates. Formerly we violated the ODR when performing
@@ -2526,7 +2531,7 @@ pub fn create_global_var_metadata(cx: &CodegenCx<'ll, '_>, def_id: DefId, global
 
     // We may want to remove the namespace scope if we're in an extern block (see
     // https://github.com/rust-lang/rust/pull/46457#issuecomment-351750952).
-    let var_scope = get_namespace_for_item(cx, def_id);
+    let var_scope = get_namespace_for_item(cx, def_id, ty::List::empty());
     let span = tcx.def_span(def_id);
 
     let (file_metadata, line_number) = if !span.is_dummy() {

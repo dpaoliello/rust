@@ -15,7 +15,7 @@ use rustc_data_structures::fx::FxHashSet;
 use rustc_hir as hir;
 use rustc_hir::def_id::DefId;
 use rustc_hir::definitions::{DefPathData, DefPathDataName, DisambiguatedDefPathData};
-use rustc_middle::ty::subst::{GenericArgKind, SubstsRef};
+use rustc_middle::ty::subst::{GenericArgKind, Subst, SubstsRef};
 use rustc_middle::ty::{self, layout::TyAndLayout, AdtDef, Ty, TyCtxt};
 use rustc_target::abi::{Layout, TagEncoding, Variants};
 
@@ -45,6 +45,8 @@ pub fn push_debuginfo_type_name<'tcx>(
     output: &mut String,
     visited: &mut FxHashSet<Ty<'tcx>>,
 ) {
+    debug_assert_eq!(t, tcx.normalize_erasing_regions(ty::ParamEnv::reveal_all(), t));
+
     // When targeting MSVC, emit C++ style type names for compatibility with
     // .natvis visualizers (and perhaps other existing native debuggers?)
     let cpp_like_names = tcx.sess.target.is_like_msvc;
@@ -63,13 +65,12 @@ pub fn push_debuginfo_type_name<'tcx>(
         ty::Int(int_ty) => output.push_str(int_ty.name_str()),
         ty::Uint(uint_ty) => output.push_str(uint_ty.name_str()),
         ty::Float(float_ty) => output.push_str(float_ty.name_str()),
-        ty::Foreign(def_id) => push_item_name(tcx, def_id, qualified, output),
+        ty::Foreign(def_id) => push_item_name_internal(tcx, def_id, qualified, ty::List::empty(), output, visited),
         ty::Adt(def, substs) => {
             if def.is_enum() && cpp_like_names {
                 msvc_enum_fallback(tcx, t, def, substs, output, visited);
             } else {
-                push_item_name(tcx, def.did, qualified, output);
-                push_generic_params_internal(tcx, substs, output, visited);
+                push_item_name_internal(tcx, def.did, qualified, substs, output, visited);
             }
         }
         ty::Tuple(component_types) => {
@@ -184,8 +185,7 @@ pub fn push_debuginfo_type_name<'tcx>(
             if let Some(principal) = trait_data.principal() {
                 let principal =
                     tcx.normalize_erasing_late_bound_regions(ty::ParamEnv::reveal_all(), principal);
-                push_item_name(tcx, principal.def_id, qualified, output);
-                push_generic_params_internal(tcx, principal.substs, output, visited);
+                    push_item_name_internal(tcx, principal.def_id, qualified, principal.substs, output, visited);
             } else {
                 // The auto traits come ordered by `DefPathHash`, which guarantees stability if the
                 // environment is stable (e.g., incremental builds) but not otherwise (e.g.,
@@ -198,7 +198,7 @@ pub fn push_debuginfo_type_name<'tcx>(
                 auto_traits.sort();
 
                 for (_, def_id) in auto_traits {
-                    push_item_name(tcx, def_id, true, output);
+                    push_item_name_internal(tcx, def_id, true, ty::List::empty(), output, visited);
 
                     if cpp_like_names {
                         output.push_str(", ");
@@ -301,14 +301,14 @@ pub fn push_debuginfo_type_name<'tcx>(
             // processing
             visited.remove(t);
         }
-        ty::Closure(def_id, ..) | ty::Generator(def_id, ..) => {
+        ty::Closure(def_id, substs, ..) | ty::Generator(def_id, substs, ..) => {
             let key = tcx.def_key(def_id);
             if qualified {
                 let parent_def_id = DefId { index: key.parent.unwrap(), ..def_id };
-                push_item_name(tcx, parent_def_id, true, output);
+                push_item_name_internal(tcx, parent_def_id, true, substs, output, visited);
                 output.push_str("::");
             }
-            push_unqualified_item_name(tcx, def_id, key.disambiguated_data, output);
+            push_unqualified_item_name(tcx, def_id, key.disambiguated_data, substs, output, visited);
         }
         // Type parameters from polymorphized functions.
         ty::Param(_) => {
@@ -327,20 +327,15 @@ pub fn push_debuginfo_type_name<'tcx>(
                 output.push_str(" as ");
             }
             let (trait_ref, own_substs) = projection_ty.trait_ref_and_own_substs(tcx);
-            push_item_name(tcx, trait_ref.def_id, true, output);
+            let own_substs = tcx.normalize_erasing_regions(
+                ty::ParamEnv::reveal_all(),
+                tcx.mk_substs(own_substs.iter()),
+            );
+            push_item_name_internal(tcx, trait_ref.def_id, true, trait_ref.substs, output, visited);
             push_close_angle_bracket(tcx, output);
 
             output.push_str("::");
-            push_item_name(tcx, projection_ty.item_def_id, false, output);
-            push_generic_params_internal(
-                tcx,
-                tcx.normalize_erasing_regions(
-                    ty::ParamEnv::reveal_all(),
-                    tcx.mk_substs(own_substs.iter()),
-                ),
-                output,
-                visited,
-            );
+            push_item_name_internal(tcx, projection_ty.item_def_id, false, own_substs, output, visited);
         }
         ty::Error(_)
         | ty::Infer(_)
@@ -396,39 +391,48 @@ pub fn push_debuginfo_type_name<'tcx>(
             let max = tag.value.size(&tcx).truncate(*max);
 
             output.push_str("enum$<");
-            push_item_name(tcx, def.did, true, output);
-            push_generic_params_internal(tcx, substs, output, visited);
+            push_item_name_internal(tcx, def.did, true, substs, output, visited);
 
             let dataful_variant_name = def.variants[*dataful_variant].ident.as_str();
 
             output.push_str(&format!(", {}, {}, {}>", min, max, dataful_variant_name));
         } else {
             output.push_str("enum$<");
-            push_item_name(tcx, def.did, true, output);
-            push_generic_params_internal(tcx, substs, output, visited);
+            push_item_name_internal(tcx, def.did, true, substs, output, visited);
             push_close_angle_bracket(tcx, output);
         }
     }
 }
 
-pub fn push_item_name(tcx: TyCtxt<'tcx>, def_id: DefId, qualified: bool, output: &mut String) {
+pub fn push_item_name(tcx: TyCtxt<'tcx>, def_id: DefId, qualified: bool, substs: SubstsRef<'tcx>, output: &mut String) {
+    let mut visited = FxHashSet::default();
+    push_item_name_internal(tcx, def_id, qualified, substs, output, &mut visited)
+}
+
+fn push_item_name_internal(tcx: TyCtxt<'tcx>, def_id: DefId, qualified: bool, substs: SubstsRef<'tcx>, output: &mut String, visited: &mut FxHashSet<Ty<'tcx>>) {
+    debug_assert_eq!(substs, tcx.normalize_erasing_regions(ty::ParamEnv::reveal_all(), substs));
+
     let def_key = tcx.def_key(def_id);
     if qualified {
         if let Some(parent) = def_key.parent {
-            push_item_name(tcx, DefId { krate: def_id.krate, index: parent }, true, output);
+            push_item_name_internal(tcx, DefId { krate: def_id.krate, index: parent }, true, substs, output, visited);
             output.push_str("::");
         }
     }
 
-    push_unqualified_item_name(tcx, def_id, def_key.disambiguated_data, output);
+    push_unqualified_item_name(tcx, def_id, def_key.disambiguated_data, substs, output, visited);
 }
 
 fn push_unqualified_item_name(
     tcx: TyCtxt<'tcx>,
     def_id: DefId,
     disambiguated_data: DisambiguatedDefPathData,
+    substs: SubstsRef<'tcx>,
     output: &mut String,
+    visited: &mut FxHashSet<Ty<'tcx>>,
 ) {
+    debug_assert_eq!(substs, tcx.normalize_erasing_regions(ty::ParamEnv::reveal_all(), substs));
+
     let cpp_like_names = tcx.sess.target.is_like_msvc;
 
     match disambiguated_data.data {
@@ -436,11 +440,28 @@ fn push_unqualified_item_name(
             output.push_str(&tcx.crate_name(def_id.krate).as_str());
         }
         DefPathData::Impl => {
-            let self_ty = tcx.type_of(def_id);
             output.push_str(if cpp_like_names { "impl$<" } else { "<impl " });
-            if let Some(impl_trait_ref) = tcx.impl_trait_ref(def_id) {
-                push_item_name(tcx, impl_trait_ref.def_id, true, output);
+
+            let generics = tcx.generics_of(def_id);
+            let mut self_ty = tcx.type_of(def_id);
+            let mut impl_trait_ref = tcx.impl_trait_ref(def_id);
+            if substs.len() >= generics.count() {
+                self_ty = self_ty.subst(tcx, substs);
+                impl_trait_ref = impl_trait_ref.subst(tcx, substs);
+            }
+
+            let mut param_env = tcx.param_env_reveal_all_normalized(def_id);
+            if !substs.is_empty() {
+                param_env = param_env.subst(tcx, substs);
+            }
+
+            if let Some(impl_trait_ref) = impl_trait_ref {
+                let impl_trait_ref = tcx.normalize_erasing_regions(param_env, impl_trait_ref);
+                push_item_name_internal(tcx, impl_trait_ref.def_id, true, impl_trait_ref.substs, output, visited);
                 output.push_str(if cpp_like_names { ", " } else { " for " });
+                self_ty = impl_trait_ref.self_ty();
+            } else {
+                self_ty = tcx.normalize_erasing_regions(param_env, self_ty);
             }
             push_debuginfo_type_name(tcx, self_ty, true, output, &mut FxHashSet::default());
             push_close_angle_bracket(tcx, output);
@@ -457,6 +478,9 @@ fn push_unqualified_item_name(
         _ => match disambiguated_data.data.name() {
             DefPathDataName::Named(name) => {
                 output.push_str(&name.as_str());
+                if tcx.def_kind(def_id) != hir::def::DefKind::Mod {
+                    push_generic_params_internal(tcx, substs, tcx.generics_of(def_id), output, visited);
+                }
             }
             DefPathDataName::Anon { namespace } => {
                 if cpp_like_names {
@@ -478,14 +502,20 @@ fn push_unqualified_item_name(
 fn push_generic_params_internal<'tcx>(
     tcx: TyCtxt<'tcx>,
     substs: SubstsRef<'tcx>,
+    generics: &'tcx ty::Generics,
     output: &mut String,
     visited: &mut FxHashSet<Ty<'tcx>>,
 ) {
-    if substs.non_erasable_generics().next().is_none() {
+    debug_assert_eq!(substs, tcx.normalize_erasing_regions(ty::ParamEnv::reveal_all(), substs));
+
+    if generics.count() == 0 {
         return;
     }
 
-    debug_assert_eq!(substs, tcx.normalize_erasing_regions(ty::ParamEnv::reveal_all(), substs));
+    let substs = tcx.mk_substs(substs.iter().skip(generics.parent_count).take(generics.count()));
+    if substs.non_erasable_generics().next().is_none() {
+        return;
+    }
 
     output.push('<');
 
@@ -514,9 +544,9 @@ fn push_generic_params_internal<'tcx>(
     push_close_angle_bracket(tcx, output);
 }
 
-pub fn push_generic_params<'tcx>(tcx: TyCtxt<'tcx>, substs: SubstsRef<'tcx>, output: &mut String) {
+pub fn push_generic_params<'tcx>(tcx: TyCtxt<'tcx>, substs: SubstsRef<'tcx>, generics: &'tcx ty::Generics, output: &mut String) {
     let mut visited = FxHashSet::default();
-    push_generic_params_internal(tcx, substs, output, &mut visited);
+    push_generic_params_internal(tcx, substs, generics, output, &mut visited);
 }
 
 fn push_close_angle_bracket<'tcx>(tcx: TyCtxt<'tcx>, output: &mut String) {

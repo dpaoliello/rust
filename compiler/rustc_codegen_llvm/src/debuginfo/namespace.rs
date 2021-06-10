@@ -2,6 +2,7 @@
 
 use super::utils::{debug_context, DIB};
 use rustc_codegen_ssa::debuginfo::type_names;
+use rustc_middle::ty::subst::SubstsRef;
 use rustc_middle::ty::{self, Instance};
 
 use crate::common::CodegenCx;
@@ -17,7 +18,7 @@ pub fn mangled_name_of_instance<'a, 'tcx>(
     tcx.symbol_name(instance)
 }
 
-pub fn item_namespace(cx: &CodegenCx<'ll, '_>, def_id: DefId) -> &'ll DIScope {
+pub fn item_namespace(cx: &CodegenCx<'ll, 'tcx>, def_id: DefId, substs: SubstsRef<'tcx>) -> &'ll DIScope {
     if let Some(&scope) = debug_context(cx).namespace_map.borrow().get(&def_id) {
         return scope;
     }
@@ -25,11 +26,11 @@ pub fn item_namespace(cx: &CodegenCx<'ll, '_>, def_id: DefId) -> &'ll DIScope {
     let def_key = cx.tcx.def_key(def_id);
     let parent_scope = def_key
         .parent
-        .map(|parent| item_namespace(cx, DefId { krate: def_id.krate, index: parent }));
+        .map(|parent| item_namespace(cx, DefId { krate: def_id.krate, index: parent }, substs));
 
     let namespace_name_string = {
         let mut output = String::new();
-        type_names::push_item_name(cx.tcx, def_id, false, &mut output);
+        type_names::push_item_name(cx.tcx, def_id, false, substs, &mut output);
         output
     };
 

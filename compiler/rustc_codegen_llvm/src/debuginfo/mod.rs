@@ -311,7 +311,7 @@ impl DebugInfoMethods<'tcx> for CodegenCx<'ll, 'tcx> {
         };
 
         let mut name = String::new();
-        type_names::push_item_name(self.tcx(), def_id, false, &mut name);
+        type_names::push_item_name(self.tcx(), def_id, false, instance.substs, &mut name);
 
         // Find the enclosing function, in case this is a closure.
         let enclosing_fn_def_id = self.tcx().closure_base_def_id(def_id);
@@ -423,13 +423,14 @@ impl DebugInfoMethods<'tcx> for CodegenCx<'ll, 'tcx> {
 
         fn get_template_parameters<'ll, 'tcx>(
             cx: &CodegenCx<'ll, 'tcx>,
-            generics: &ty::Generics,
+            generics: &'tcx ty::Generics,
             substs: SubstsRef<'tcx>,
             name_to_append_suffix_to: &mut String,
         ) -> &'ll DIArray {
             type_names::push_generic_params(
                 cx.tcx,
                 cx.tcx.normalize_erasing_regions(ty::ParamEnv::reveal_all(), substs),
+                generics,
                 name_to_append_suffix_to,
             );
 
@@ -496,14 +497,14 @@ impl DebugInfoMethods<'tcx> for CodegenCx<'ll, 'tcx> {
                     // Only "class" methods are generally understood by LLVM,
                     // so avoid methods on other types (e.g., `<*mut T>::null`).
                     match impl_self_ty.kind() {
-                        ty::Adt(def, ..) if !def.is_box() => {
+                        ty::Adt(def, substs) if !def.is_box() => {
                             // Again, only create type information if full debuginfo is enabled
                             if cx.sess().opts.debuginfo == DebugInfo::Full
                                 && !impl_self_ty.needs_subst()
                             {
                                 Some(type_metadata(cx, impl_self_ty, rustc_span::DUMMY_SP))
                             } else {
-                                Some(namespace::item_namespace(cx, def.did))
+                                Some(namespace::item_namespace(cx, def.did, substs))
                             }
                         }
                         _ => None,
@@ -526,6 +527,7 @@ impl DebugInfoMethods<'tcx> for CodegenCx<'ll, 'tcx> {
                             .parent
                             .expect("get_containing_scope: missing parent?"),
                     },
+                    instance.substs,
                 )
             })
         }

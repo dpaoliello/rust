@@ -5,6 +5,7 @@ use super::CrateDebugContext;
 
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::DefIdTree;
+use rustc_middle::ty::subst::SubstsRef;
 
 use crate::common::CodegenCx;
 use crate::llvm;
@@ -38,6 +39,6 @@ pub fn DIB(cx: &'a CodegenCx<'ll, '_>) -> &'a DIBuilder<'ll> {
     cx.dbg_cx.as_ref().unwrap().builder
 }
 
-pub fn get_namespace_for_item(cx: &CodegenCx<'ll, '_>, def_id: DefId) -> &'ll DIScope {
-    item_namespace(cx, cx.tcx.parent(def_id).expect("get_namespace_for_item: missing parent?"))
+pub fn get_namespace_for_item(cx: &CodegenCx<'ll, 'tcx>, def_id: DefId, substs: SubstsRef<'tcx>) -> &'ll DIScope {
+    item_namespace(cx, cx.tcx.parent(def_id).expect("get_namespace_for_item: missing parent?"), substs)
 }
