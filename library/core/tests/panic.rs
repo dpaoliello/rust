@@ -1,11 +1,9 @@
 #![allow(dead_code)]
 
-use crate::cell::RefCell;
-use crate::panic::{self, AssertUnwindSafe, UnwindSafe};
-use crate::rc::Rc;
-use crate::sync::{Arc, Mutex, RwLock};
+use core::cell::RefCell;
+use core::panic::{self, AssertUnwindSafe, UnwindSafe};
 
-#[derive(crate::fmt::Debug, crate::cmp::PartialEq)]
+#[derive(core::fmt::Debug, core::cmp::PartialEq)]
 struct Foo {
     a: i32,
 }
@@ -27,22 +25,11 @@ fn panic_safety_traits() {
     assert::<String>();
     assert::<RefCell<i32>>();
     assert::<Box<i32>>();
-    assert::<Mutex<i32>>();
-    assert::<RwLock<i32>>();
-    assert::<&Mutex<i32>>();
-    assert::<&RwLock<i32>>();
-    assert::<Rc<i32>>();
-    assert::<Arc<i32>>();
     assert::<Box<[u8]>>();
 
     {
         trait Trait: UnwindSafe {}
         assert::<Box<dyn Trait>>();
-    }
-
-    fn bar<T>() {
-        assert::<Mutex<T>>();
-        assert::<RwLock<T>>();
     }
 
     fn baz<T: UnwindSafe>() {
@@ -51,8 +38,6 @@ fn panic_safety_traits() {
         assert::<RefCell<T>>();
         assert::<AssertUnwindSafe<T>>();
         assert::<&AssertUnwindSafe<T>>();
-        assert::<Rc<AssertUnwindSafe<T>>>();
-        assert::<Arc<AssertUnwindSafe<T>>>();
     }
 }
 
@@ -67,17 +52,9 @@ fn catch_unwind_tests() {
     }
 
     if let Err(failure_value) = panic::catch_unwind(|| {
-        panic!("Oh, no: {}!", "Failure");
+        core::panic!("Oh, no: {}!", "Failure");
     }) {
-        assert_eq!(failure_value.downcast_ref::<String>().unwrap(), &"Oh, no: Failure!");
-    } else {
-        unreachable!();
-    }
-
-    if let Err(failure_value) = panic::catch_unwind(|| {
-        panic!(Foo{ a: 42 });
-    }) {
-        assert_eq!(failure_value.downcast_ref::<Foo>().unwrap(), &Foo{ a: 42 });
+        assert_eq!(failure_value, ());
     } else {
         unreachable!();
     }

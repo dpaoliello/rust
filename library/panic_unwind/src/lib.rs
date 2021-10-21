@@ -97,6 +97,11 @@ pub unsafe extern "C" fn __rust_panic_cleanup(payload: *mut u8) -> *mut (dyn Any
     Box::into_raw(imp::cleanup(payload))
 }
 
+#[rustc_std_internal_symbol]
+pub unsafe extern "C" fn __rust_panic_cleanup_and_drop(payload: *mut u8) {
+    imp::cleanup(payload);
+}
+
 // Entry point for raising an exception, just delegates to the platform-specific
 // implementation.
 #[rustc_std_internal_symbol]

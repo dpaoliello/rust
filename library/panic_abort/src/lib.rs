@@ -29,6 +29,11 @@ pub unsafe extern "C" fn __rust_panic_cleanup(_: *mut u8) -> *mut (dyn Any + Sen
     unreachable!()
 }
 
+#[rustc_std_internal_symbol]
+pub unsafe extern "C" fn __rust_panic_cleanup_and_drop(_payload: *mut u8) {
+    unreachable!();
+}
+
 // "Leak" the payload and shim to the relevant abort on the platform in question.
 #[rustc_std_internal_symbol]
 pub unsafe extern "C-unwind" fn __rust_start_panic(_payload: *mut &mut dyn BoxMeUp) -> u32 {

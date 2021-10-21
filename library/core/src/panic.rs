@@ -7,6 +7,7 @@ mod panic_info;
 mod unwind_safe;
 
 use crate::any::Any;
+use crate::panicking;
 
 #[stable(feature = "panic_hooks", since = "1.10.0")]
 pub use self::location::Location;
@@ -76,4 +77,60 @@ pub unsafe trait BoxMeUp {
 
     /// Just borrow the contents.
     fn get(&mut self) -> &(dyn Any + Send);
+}
+
+/// Invokes a closure, capturing the cause of an unwinding panic if one occurs.
+///
+/// This function will return `Ok` with the closure's result if the closure
+/// does not panic, and will return `Err(cause)` if the closure panics. The
+/// `cause` returned is the object with which panic was originally invoked.
+///
+/// It is currently undefined behavior to unwind from Rust code into foreign
+/// code, so this function is particularly useful when Rust is called from
+/// another language (normally C). This can run arbitrary Rust code, capturing a
+/// panic and allowing a graceful handling of the error.
+///
+/// It is **not** recommended to use this function for a general try/catch
+/// mechanism. The [`Result`] type is more appropriate to use for functions that
+/// can fail on a regular basis. Additionally, this function is not guaranteed
+/// to catch all panics, see the "Notes" section below.
+///
+/// The closure provided is required to adhere to the [`UnwindSafe`] trait to ensure
+/// that all captured variables are safe to cross this boundary. The purpose of
+/// this bound is to encode the concept of [exception safety][rfc] in the type
+/// system. Most usage of this function should not need to worry about this
+/// bound as programs are naturally unwind safe without `unsafe` code. If it
+/// becomes a problem the [`AssertUnwindSafe`] wrapper struct can be used to quickly
+/// assert that the usage here is indeed unwind safe.
+///
+/// [rfc]: https://github.com/rust-lang/rfcs/blob/master/text/1236-stabilize-catch-panic.md
+///
+/// # Notes
+///
+/// Note that this function **might not catch all panics** in Rust. A panic in
+/// Rust is not always implemented via unwinding, but can be implemented by
+/// aborting the process as well. This function *only* catches unwinding panics,
+/// not those that abort the process.
+///
+/// Also note that unwinding into Rust code with a foreign exception (e.g.
+/// an exception thrown from C++ code) is undefined behavior.
+///
+/// # Examples
+///
+/// ```
+/// use std::panic;
+///
+/// let result = panic::catch_unwind(|| {
+///     println!("hello!");
+/// });
+/// assert!(result.is_ok());
+///
+/// let result = panic::catch_unwind(|| {
+///     panic!("oh no!");
+/// });
+/// assert!(result.is_err());
+/// ```
+#[unstable(feature = "catch_unwind_in_libcore", issue = "none")]
+pub fn catch_unwind<F: FnOnce() -> R + UnwindSafe, R>(f: F) -> Result<R, ()> {
+    unsafe { panicking::r#try(f) }
 }

@@ -72,6 +72,7 @@
 #![feature(trusted_random_access)]
 #![feature(unsize)]
 #![feature(unzip_option)]
+#![feature(catch_unwind_in_libcore)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
 extern crate test;
@@ -99,6 +100,7 @@ mod nonzero;
 mod num;
 mod ops;
 mod option;
+mod panic;
 mod pattern;
 mod pin;
 mod ptr;
