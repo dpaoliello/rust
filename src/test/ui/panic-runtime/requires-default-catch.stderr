@@ -1,0 +1,4 @@
+error: requires `default_catch` lang_item
+
+error: aborting due to previous error
+

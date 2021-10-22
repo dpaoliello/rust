@@ -27,15 +27,15 @@
 )]
 
 use crate::fmt;
+#[cfg(not(bootstrap))]
 use crate::intrinsics;
+#[cfg(not(bootstrap))]
 use crate::mem::ManuallyDrop;
 use crate::panic::{Location, PanicInfo};
 
-extern "C" {
-    fn __rust_panic_cleanup_and_drop(payload: *mut u8);
-}
-
 /// Invoke a closure, capturing the cause of an unwinding panic if one occurs.
+#[cfg(not(bootstrap))]
+#[unstable(feature = "catch_unwind_in_libcore", issue = "none")]
 pub unsafe fn r#try<R, F: FnOnce() -> R>(f: F) -> Result<R, ()> {
     union Data<F, R> {
         f: ManuallyDrop<F>,
@@ -55,14 +55,13 @@ pub unsafe fn r#try<R, F: FnOnce() -> R>(f: F) -> Result<R, ()> {
     //   entirely uninitialized.
     // * If the closure successfully returns, we write the return value into the
     //   data's return slot (field `r`).
-    // * If the closure panics (`do_catch` below), we write the panic payload into field `p`.
     // * Finally, when we come back out of the `try` intrinsic we're
     //   in one of two states:
     //
     //      1. The closure didn't panic, in which case the return value was
     //         filled in. We move it out of `data.r` and return it.
-    //      2. The closure panicked, in which case the panic payload was
-    //         filled in. We move it out of `data.p` and return it.
+    //      2. The closure panicked, in which case there is no return value
+    //         so return an empty error.
     //
     // Once we stack all that together we should have the "most efficient'
     // method of calling a catch panic whilst juggling ownership.
@@ -71,15 +70,14 @@ pub unsafe fn r#try<R, F: FnOnce() -> R>(f: F) -> Result<R, ()> {
     let data_ptr = &mut data as *mut _ as *mut u8;
     // SAFETY:
     //
-    // Access to the union's fields: this is `std` and we know that the `r#try`
-    // intrinsic fills in the `r` or `p` union field based on its return value.
+    // Access to the union's fields: this is `core` and we know that the
+    // `try_with_default_catch` intrinsic fills in the `r` union field based on
+    // if it is successful its return value.
     //
-    // The call to `intrinsics::r#try` is made safe by:
+    // The call to `intrinsics::try_with_default_catch` is made safe by:
     // - `do_call`, the first argument, can be called with the initial `data_ptr`.
-    // - `do_catch`, the second argument, can be called with the `data_ptr` as well.
-    // See their safety preconditions for more informations
     unsafe {
-        return if intrinsics::r#try(do_call::<F, R>, data_ptr, do_catch::<F, R>) == 0 {
+        return if intrinsics::try_with_default_catch(do_call::<F, R>, data_ptr) == 0 {
             Ok(ManuallyDrop::into_inner(data.r))
         } else {
             Err(())
@@ -102,15 +100,6 @@ pub unsafe fn r#try<R, F: FnOnce() -> R>(f: F) -> Result<R, ()> {
             let f = ManuallyDrop::take(&mut data.f);
             data.r = ManuallyDrop::new(f());
         }
-    }
-
-    // The only thing that we need to do when catching is cleanup whatever payload
-    // was provided to us.
-    #[inline]
-    fn do_catch<F: FnOnce() -> R, R>(_data: *mut u8, payload: *mut u8) {
-        // SAFETY: The whole unsafe block hinges on a correct implementation of
-        // the panic handler `__rust_panic_cleanup_and_drop`.
-        unsafe { __rust_panic_cleanup_and_drop(payload) };
     }
 }
 

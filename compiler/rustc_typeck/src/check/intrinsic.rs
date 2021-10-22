@@ -361,6 +361,22 @@ pub fn check_intrinsic_type(tcx: TyCtxt<'_>, it: &hir::ForeignItem<'_>) {
                 )
             }
 
+            sym::try_with_default_catch => {
+                let mut_u8 = tcx.mk_mut_ptr(tcx.types.u8);
+                let try_fn_ty = ty::Binder::dummy(tcx.mk_fn_sig(
+                    iter::once(mut_u8),
+                    tcx.mk_unit(),
+                    false,
+                    hir::Unsafety::Normal,
+                    Abi::Rust,
+                ));
+                (
+                    0,
+                    vec![tcx.mk_fn_ptr(try_fn_ty), mut_u8],
+                    tcx.types.i32,
+                )
+            }
+
             sym::va_start | sym::va_end => match mk_va_list_ty(hir::Mutability::Mut) {
                 Some((va_list_ref_ty, _)) => (0, vec![va_list_ref_ty], tcx.mk_unit()),
                 None => bug!("`va_list` language item needed for C-variadic intrinsics"),

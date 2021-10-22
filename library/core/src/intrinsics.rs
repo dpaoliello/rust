@@ -1885,6 +1885,15 @@ extern "rust-intrinsic" {
     /// source as well as std's catch implementation.
     pub fn r#try(try_fn: fn(*mut u8), data: *mut u8, catch_fn: fn(*mut u8, *mut u8)) -> i32;
 
+    /// Rust's "try" construct which invokes the function pointer `try_fn`
+    /// with the data pointer `data`.
+    ///
+    /// If a panic occurs the `default_catch` lang item will be called to cleanup
+    /// any state allocated when throwing the exception.
+    #[unstable(feature = "catch_unwind_in_libcore", issue = "none")]
+    #[cfg(not(bootstrap))]
+    pub fn try_with_default_catch(try_fn: fn(*mut u8), data: *mut u8) -> i32;
+
     /// Emits a `!nontemporal` store according to LLVM (see their docs).
     /// Probably will never become stable.
     pub fn nontemporal_store<T>(ptr: *mut T, val: T);

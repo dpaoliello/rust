@@ -1,5 +1,6 @@
-// build-pass
+// build-fail
 // compile-flags:-C panic=unwind
+// error-pattern: requires `default_catch` lang_item
 
 #![feature(lang_items)]
 #![feature(panic_runtime)]
@@ -15,10 +16,6 @@ extern crate libc;
 #[no_mangle]
 #[lang = "eh_personality"]
 pub extern "C" fn rust_eh_personality() {}
-
-#[lang = "default_catch"]
-#[rustc_std_internal_symbol]
-pub fn default_catch(payload: *mut u8) {}
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {

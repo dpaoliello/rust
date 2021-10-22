@@ -7,6 +7,7 @@ mod panic_info;
 mod unwind_safe;
 
 use crate::any::Any;
+#[cfg(not(bootstrap))]
 use crate::panicking;
 
 #[stable(feature = "panic_hooks", since = "1.10.0")]
@@ -131,6 +132,7 @@ pub unsafe trait BoxMeUp {
 /// assert!(result.is_err());
 /// ```
 #[unstable(feature = "catch_unwind_in_libcore", issue = "none")]
+#[cfg(not(bootstrap))]
 pub fn catch_unwind<F: FnOnce() -> R + UnwindSafe, R>(f: F) -> Result<R, ()> {
     unsafe { panicking::r#try(f) }
 }

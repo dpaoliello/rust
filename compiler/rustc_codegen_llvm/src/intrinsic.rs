@@ -122,6 +122,29 @@ impl IntrinsicCallMethods<'tcx> for Builder<'a, 'll, 'tcx> {
                     args[0].immediate(),
                     args[1].immediate(),
                     args[2].immediate(),
+                    true,
+                    llresult,
+                );
+                return;
+            }
+            sym::try_with_default_catch => {
+                let default_catch_def_id = tcx.require_lang_item(hir::LangItem::DefaultCatch, None);
+                let default_catch_fn = self.cx().get_fn_addr(
+                    ty::Instance::resolve(
+                        tcx,
+                        ty::ParamEnv::reveal_all(),
+                        default_catch_def_id,
+                        tcx.intern_substs(&[]),
+                    )
+                    .unwrap()
+                    .unwrap(),
+                );
+                try_intrinsic(
+                    self,
+                    args[0].immediate(),
+                    args[1].immediate(),
+                    default_catch_fn,
+                    false,
                     llresult,
                 );
                 return;
@@ -415,6 +438,7 @@ fn try_intrinsic(
     try_func: &'ll Value,
     data: &'ll Value,
     catch_func: &'ll Value,
+    catch_func_has_data_param: bool,
     dest: &'ll Value,
 ) {
     if bx.sess().panic_strategy() == PanicStrategy::Abort {
@@ -425,11 +449,11 @@ fn try_intrinsic(
         let ret_align = bx.tcx().data_layout.i32_align.abi;
         bx.store(bx.const_i32(0), dest, ret_align);
     } else if wants_msvc_seh(bx.sess()) {
-        codegen_msvc_try(bx, try_func, data, catch_func, dest);
+        codegen_msvc_try(bx, try_func, data, catch_func, catch_func_has_data_param, dest);
     } else if bx.sess().target.is_like_emscripten {
-        codegen_emcc_try(bx, try_func, data, catch_func, dest);
+        codegen_emcc_try(bx, try_func, data, catch_func, catch_func_has_data_param, dest);
     } else {
-        codegen_gnu_try(bx, try_func, data, catch_func, dest);
+        codegen_gnu_try(bx, try_func, data, catch_func, catch_func_has_data_param, dest);
     }
 }
 
@@ -445,6 +469,7 @@ fn codegen_msvc_try(
     try_func: &'ll Value,
     data: &'ll Value,
     catch_func: &'ll Value,
+    catch_func_has_data_param: bool,
     dest: &'ll Value,
 ) {
     let (llty, llfn) = get_rust_try_fn(bx, &mut |mut bx| {
@@ -561,14 +586,22 @@ fn codegen_msvc_try(
         let funclet = catchpad_rust.catch_pad(cs, &[tydesc, flags, slot]);
         let ptr = catchpad_rust.load(bx.type_i8p(), slot, ptr_align);
         let catch_ty = bx.type_func(&[bx.type_i8p(), bx.type_i8p()], bx.type_void());
-        catchpad_rust.call(catch_ty, catch_func, &[data, ptr], Some(&funclet));
+        if catch_func_has_data_param {
+            catchpad_rust.call(catch_ty, catch_func, &[data, ptr], Some(&funclet));
+        } else {
+            catchpad_rust.call(catch_ty, catch_func, &[ptr], Some(&funclet));
+        }
         catchpad_rust.catch_ret(&funclet, caught.llbb());
 
         // The flag value of 64 indicates a "catch-all".
         let flags = bx.const_i32(64);
         let null = bx.const_null(bx.type_i8p());
         let funclet = catchpad_foreign.catch_pad(cs, &[null, flags, null]);
-        catchpad_foreign.call(catch_ty, catch_func, &[data, null], Some(&funclet));
+        if catch_func_has_data_param {
+            catchpad_foreign.call(catch_ty, catch_func, &[data, null], Some(&funclet));
+        } else {
+            catchpad_foreign.call(catch_ty, catch_func, &[null], Some(&funclet));
+        }
         catchpad_foreign.catch_ret(&funclet, caught.llbb());
 
         caught.ret(bx.const_i32(1));
@@ -597,6 +630,7 @@ fn codegen_gnu_try(
     try_func: &'ll Value,
     data: &'ll Value,
     catch_func: &'ll Value,
+    catch_func_has_data_param: bool,
     dest: &'ll Value,
 ) {
     let (llty, llfn) = get_rust_try_fn(bx, &mut |mut bx| {
@@ -634,7 +668,11 @@ fn codegen_gnu_try(
         catch.add_clause(vals, tydesc);
         let ptr = catch.extract_value(vals, 0);
         let catch_ty = bx.type_func(&[bx.type_i8p(), bx.type_i8p()], bx.type_void());
-        catch.call(catch_ty, catch_func, &[data, ptr], None);
+        if catch_func_has_data_param {
+            catch.call(catch_ty, catch_func, &[data, ptr], None);
+        } else {
+            catch.call(catch_ty, catch_func, &[ptr], None);
+        }
         catch.ret(bx.const_i32(1));
     });
 
@@ -653,6 +691,7 @@ fn codegen_emcc_try(
     try_func: &'ll Value,
     data: &'ll Value,
     catch_func: &'ll Value,
+    catch_func_has_data_param: bool,
     dest: &'ll Value,
 ) {
     let (llty, llfn) = get_rust_try_fn(bx, &mut |mut bx| {
@@ -722,7 +761,11 @@ fn codegen_emcc_try(
         let catch_data = catch.bitcast(catch_data, bx.type_i8p());
 
         let catch_ty = bx.type_func(&[bx.type_i8p(), bx.type_i8p()], bx.type_void());
-        catch.call(catch_ty, catch_func, &[data, catch_data], None);
+        if catch_func_has_data_param {
+            catch.call(catch_ty, catch_func, &[data, catch_data], None);
+        } else {
+            catch.call(catch_ty, catch_func, &[catch_data], None);
+        }
         catch.ret(bx.const_i32(1));
     });
 

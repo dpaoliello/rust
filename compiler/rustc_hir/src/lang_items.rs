@@ -293,6 +293,7 @@ language_item_table! {
     /// libstd panic entry point. Necessary for const eval to be able to catch it
     BeginPanic,              sym::begin_panic,         begin_panic_fn,             Target::Fn,             GenericRequirement::None;
     BeginPanicFmt,           sym::begin_panic_fmt,     begin_panic_fmt,            Target::Fn,             GenericRequirement::None;
+    DefaultCatch,            sym::default_catch,       default_catch,              Target::Fn,             GenericRequirement::None;
 
     ExchangeMalloc,          sym::exchange_malloc,     exchange_malloc_fn,         Target::Fn,             GenericRequirement::None;
     BoxFree,                 sym::box_free,            box_free_fn,                Target::Fn,             GenericRequirement::Minimum(1);

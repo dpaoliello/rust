@@ -16,6 +16,7 @@
 #![feature(rustc_attrs)]
 #![feature(asm)]
 #![feature(c_unwind)]
+#![feature(lang_items)]
 
 #[cfg(target_os = "android")]
 mod android;
@@ -27,11 +28,6 @@ use core::panic::BoxMeUp;
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn __rust_panic_cleanup(_: *mut u8) -> *mut (dyn Any + Send + 'static) {
     unreachable!()
-}
-
-#[rustc_std_internal_symbol]
-pub unsafe extern "C" fn __rust_panic_cleanup_and_drop(_payload: *mut u8) {
-    unreachable!();
 }
 
 // "Leak" the payload and shim to the relevant abort on the platform in question.
