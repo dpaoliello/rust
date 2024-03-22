@@ -1,3 +1,4 @@
+use crate::convert::{TryFrom, TryInto};
 use crate::simd::{
     cmp::SimdPartialOrd,
     num::SimdUint,
