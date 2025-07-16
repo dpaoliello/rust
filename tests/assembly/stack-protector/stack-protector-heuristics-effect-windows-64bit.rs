@@ -12,7 +12,7 @@
 #![crate_type = "lib"]
 #![feature(unsized_fn_params)]
 
-// CHECK-LABEL: emptyfn:
+// CHECK-LABEL: emptyfn
 #[no_mangle]
 pub fn emptyfn() {
     // all: __security_check_cookie
