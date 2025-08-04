@@ -20,11 +20,11 @@ fn main() {
     llvm_nm()
         .input(rust_lib_name("rust_dep_up"))
         .run()
-        .assert_stdout_contains_regex("U.*native_f2");
+        .assert_stdout_contains_regex("w.*native_f2");
     llvm_nm()
         .input(rust_lib_name("rust_dep_up"))
         .run()
-        .assert_stdout_contains_regex("U.*native_f3");
+        .assert_stdout_contains_regex("w.*native_f3");
     llvm_nm()
         .input(rust_lib_name("rust_dep_up"))
         .run()
@@ -48,7 +48,7 @@ fn main() {
     llvm_nm()
         .input(rust_lib_name("rust_dep_local"))
         .run()
-        .assert_stdout_contains_regex("U.*native_f1");
+        .assert_stdout_contains_regex("w.*native_f1");
     llvm_nm()
         .input(rust_lib_name("rust_dep_local"))
         .run()

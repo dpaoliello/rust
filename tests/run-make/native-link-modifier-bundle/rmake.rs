@@ -31,13 +31,13 @@ fn main() {
     llvm_nm()
         .input(static_lib_name("bundled"))
         .run()
-        .assert_stdout_contains_regex("T _*native_func");
+        .assert_stdout_contains_regex("T #native_func");
     llvm_nm()
         .input(static_lib_name("bundled"))
         .run()
-        .assert_stdout_contains_regex("U _*native_func");
-    llvm_nm().input(rust_lib_name("bundled")).run().assert_stdout_contains_regex("T _*native_func");
-    llvm_nm().input(rust_lib_name("bundled")).run().assert_stdout_contains_regex("U _*native_func");
+        .assert_stdout_contains_regex("w #native_func");
+    llvm_nm().input(rust_lib_name("bundled")).run().assert_stdout_contains_regex("T #native_func");
+    llvm_nm().input(rust_lib_name("bundled")).run().assert_stdout_contains_regex("w #native_func");
 
     // Build a staticlib and a rlib, the `native_func` symbol will not be bundled into it
     build_native_static_lib("native-staticlib");
@@ -45,19 +45,19 @@ fn main() {
     llvm_nm()
         .input(static_lib_name("non_bundled"))
         .run()
-        .assert_stdout_not_contains_regex("T _*native_func");
+        .assert_stdout_not_contains_regex("T #native_func$");
     llvm_nm()
         .input(static_lib_name("non_bundled"))
         .run()
-        .assert_stdout_contains_regex("U _*native_func");
+        .assert_stdout_contains_regex("w #native_func");
     llvm_nm()
         .input(rust_lib_name("non_bundled"))
         .run()
-        .assert_stdout_not_contains_regex("T _*native_func");
+        .assert_stdout_not_contains_regex("T #native_func$");
     llvm_nm()
         .input(rust_lib_name("non_bundled"))
         .run()
-        .assert_stdout_contains_regex("U _*native_func");
+        .assert_stdout_contains_regex("w #native_func");
 
     // This part of the test does not function on Windows MSVC - no symbols are printed.
     if !is_windows_msvc() {
@@ -72,7 +72,7 @@ fn main() {
         llvm_nm()
             .input(dynamic_lib_name("cdylib_bundled"))
             .run()
-            .assert_stdout_contains_regex("[Tt] _*native_func");
+            .assert_stdout_contains_regex("[Tt] #native_func");
 
         // Build a cdylib, `native-staticlib` will appear on the linker line because it was not
         // bundled previously. The cdylib will contain the `native_func` symbol in the end
@@ -85,6 +85,6 @@ fn main() {
         llvm_nm()
             .input(dynamic_lib_name("cdylib_non_bundled"))
             .run()
-            .assert_stdout_contains_regex("[Tt] _*native_func");
+            .assert_stdout_contains_regex("[Tt] #native_func");
     }
 }

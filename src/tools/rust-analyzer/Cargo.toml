@@ -35,6 +35,10 @@ inherits = "release"
 debug = 2
 
 [patch.'crates-io']
+miow = { git = 'https://github.com/dpaoliello/miow.git', branch = 'windowssys' }
+nu-ansi-term = { git = 'https://github.com/nushell/nu-ansi-term' }
+seize = { git = 'https://github.com/ibraheemdev/seize' }
+
 # rowan = { path = "../rowan" }
 
 # chalk-solve = { path = "../chalk/chalk-solve" }

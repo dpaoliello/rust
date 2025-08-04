@@ -17,6 +17,7 @@
 // https://developercommunity.microsoft.com/t/Remove-checking-for-and-fixing-Cortex-A/10905134
 // we'll need to disable this test on Arm64 Windows.
 //@ ignore-aarch64-pc-windows-msvc
+//@ ignore-arm64ec-pc-windows-msvc
 
 #![deny(warnings)]
 

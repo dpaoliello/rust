@@ -13,7 +13,7 @@ fn main() {
     rustc().input("native_dep.rs").crate_type("staticlib").output("native_dep.ext").run();
 
     rustc().input("rust_dep.rs").crate_type("rlib").arg("-Zpacked_bundled_libs").run();
-    llvm_nm().input(rust_lib_name("rust_dep")).run().assert_stdout_contains_regex("U.*native_f1");
+    llvm_nm().input(rust_lib_name("rust_dep")).run().assert_stdout_contains_regex("w.*native_f1");
     llvm_ar()
         .arg("t")
         .arg(rust_lib_name("rust_dep"))
