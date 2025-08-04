@@ -91,5 +91,14 @@ codegen-units = 1
 
 # If you want to use a crate with local modifications, you can set a path or git dependency here.
 # For git dependencies, also add your source to ALLOWED_SOURCES in src/tools/tidy/src/extdeps.rs.
-#[patch.crates-io]
+[patch.crates-io]
+tracing-subscriber = { git = 'https://github.com/tokio-rs/tracing', rev = 'e63ef57f3d686abe3727ddd586eb9af73d6715b7' }
+psm = { git = 'https://github.com/dpaoliello/stacker.git', branch = 'arm64ec' }
 
+#  "tracing 0.1.41 (git+https://github.com/tokio-rs/tracing)",
+#  "tracing-core 0.1.34 (git+https://github.com/tokio-rs/tracing)",
+#  "tracing-log 0.2.0 (git+https://github.com/tokio-rs/tracing)",
+[patch.'https://github.com/tokio-rs/tracing']
+tracing = {version = "0.1", registry = "crates-io" }
+tracing-core = {version = "0.1", registry = "crates-io" }
+tracing-log = {version = "0.2", registry = "crates-io" }
