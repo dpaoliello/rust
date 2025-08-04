@@ -12,6 +12,9 @@
 //@ [cfail2]compile-flags: -Zincremental-ignore-spans
 //@ [cfail3]compile-flags: -Zincremental-ignore-spans
 
+// Arm64EC crashes with an AV.
+//@ ignore-arm64ec-pc-windows-msvc
+
 #![allow(warnings)]
 #![feature(linkage)]
 #![feature(rustc_attrs)]
