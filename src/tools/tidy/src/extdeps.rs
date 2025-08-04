@@ -8,6 +8,9 @@ const ALLOWED_SOURCES: &[&str] = &[
     r#""registry+https://github.com/rust-lang/crates.io-index""#,
     // This is `rust_team_data` used by `site` in src/tools/rustc-perf,
     r#""git+https://github.com/rust-lang/team#a5260e76d3aa894c64c56e6ddc8545b9a98043ec""#,
+    r#""git+https://github.com/dpaoliello/stacker.git?branch=arm64ec#4e65067c0083c9ce58a96783ce79f67364e209bd""#,
+    r#""git+https://github.com/dpaoliello/miow.git?branch=windowssys#54860f07b82cfedc7717a745d72c8c0e7af56bd6""#,
+    r#""git+https://github.com/dpaoliello/nu-ansi-term.git?branch=windowssys#be4bf2377e49ceaa1bddb2c90f3ff37eee13a640""#,
 ];
 
 /// Checks for external package sources. `root` is the path to the directory that contains the

@@ -174,7 +174,8 @@ pub fn symlink_dir(config: &Config, original: &Path, link: &Path) -> io::Result<
 
     #[cfg(windows)]
     fn symlink_dir_inner(target: &Path, junction: &Path) -> io::Result<()> {
-        junction::create(target, junction)
+        use std::os::windows::fs;
+        fs::symlink_dir(target, junction)
     }
 }
 
