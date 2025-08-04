@@ -7,7 +7,7 @@ pub(crate) fn target() -> Target {
     add_link_args(
         &mut base.late_link_args,
         LinkerFlavor::Msvc(Lld::No),
-        &["/machine:arm64ec", "softintrin.lib"],
+        &["/machine:arm64ec", "softintrin.lib", "/IGNORE:4279"],
     );
 
     // Microsoft recommends enabling frame pointers on Arm64 Windows.

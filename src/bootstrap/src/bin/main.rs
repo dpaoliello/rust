@@ -119,7 +119,8 @@ fn main() {
 
         #[cfg(windows)]
         fn symlink_dir_inner(target: &Path, junction: &Path) -> io::Result<()> {
-            junction::create(target, junction)
+            use std::os::windows::fs;
+            fs::symlink_dir(target, junction)
         }
 
         t!(symlink_dir_inner(&tracing_dir, &latest_trace_dir));
