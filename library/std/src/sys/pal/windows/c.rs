@@ -239,3 +239,10 @@ cfg_if::cfg_if! {
         windows_targets::link_raw_dylib!("ntdll.dll" "system" fn RtlNtStatusToDosError(status : NTSTATUS) -> u32);
     }
 }
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct LARGE_INTEGER {
+    pub QuadPart: i64,
+}
+windows_targets::link!("kernel32.dll" "system" fn SetFilePointerEx(hfile : HANDLE, lidistancetomove : LARGE_INTEGER, lpnewfilepointer : *mut LARGE_INTEGER, dwmovemethod : SET_FILE_POINTER_MOVE_METHOD) -> BOOL);

@@ -616,10 +616,10 @@ impl File {
             SeekFrom::End(n) => (c::FILE_END, n),
             SeekFrom::Current(n) => (c::FILE_CURRENT, n),
         };
-        let pos = pos as i64;
-        let mut newpos = 0;
+        let pos = c::LARGE_INTEGER { QuadPart: pos as i64 };
+        let mut newpos = c::LARGE_INTEGER { QuadPart: 0 };
         cvt(unsafe { c::SetFilePointerEx(self.handle.as_raw_handle(), pos, &mut newpos, whence) })?;
-        Ok(newpos as u64)
+        Ok(newpos.QuadPart as u64)
     }
 
     pub fn size(&self) -> Option<io::Result<u64>> {
